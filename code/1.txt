@@ -1,0 +1,127 @@
+#!usr/bin/env/python
+#-*encoding:utf-8-*-
+#RU GEO IP Checker
+#(c) login999
+
+import re
+import urllib2
+import tkFileDialog
+import tkMessageBox
+from Tkinter import *
+from xml.dom.minidom import Document
+import xml.etree.cElementTree
+
+def Gui():
+    request_xml = None
+    answer_xml = None
+    
+    def Load_Button():
+        global request_xml
+        try:
+            with open(tkFileDialog.askopenfilename()) as source_ips:
+                ips_list = re.findall(r"(\d+\.\d+\.\d+\.\d+)", source_ips.read())
+                request_xml = create_xml(ips_list)
+                GetButton["state"] = "normal"
+                ProxyEntry["state"] = "normal"
+                LoadButton["state"] = "disabled"
+        except Exception, e:
+            tkMessageBox.showerror(u"Ошибка", e)
+            
+    def Save_Button():
+        global answer_xml
+        try:
+            with open(tkFileDialog.asksaveasfilename(), "w") as out:
+                answer = parse_answer(answer_xml)
+                out.write(answer)
+                LoadButton["state"] = "normal"
+                SaveButton["state"] = "disabled"
+        except Exception, e:
+            tkMessageBox.showerror(u"Ошибка", e)
+            
+    def Get_Button():
+        global answer_xml
+        global request_xml
+        proxy = ProxyEntry.get()
+        if proxy:
+            proxy_handler = urllib2.ProxyHandler( { "http": "http://"+proxy+"/" } )
+            opener = urllib2.build_opener(proxy_handler)
+            urllib2.install_opener(opener)
+        else:
+            pass
+        request = urllib2.Request("http://194.85.91.253:8090/geo/geo.html", request_xml)
+        try:
+            answer_xml = urllib2.urlopen(request).read()
+            GetButton["state"] = "disabled"
+            ProxyEntry["state"] = "disabled"
+            SaveButton["state"] = "normal"
+        except Exception, e:
+            tkMessageBox.showerror(u"Ошибка", e)
+            
+    MainWindow = Tk()
+    MainWindow["bd"] = 5
+    MainWindow.title(u"RU GEO IP Checker")
+    MainWindow.resizable(width=False, height=False)
+    ProxyFrame = Frame(MainWindow)
+    ProxyFrame.grid(row=0, column=0, columnspan=2)
+    ProxyLabel = Label(ProxyFrame, text=u"Прокси:", anchor="w")
+    ProxyLabel.grid(row=0, column=0)
+    ProxyEntry = Entry(ProxyFrame, state="disabled")
+    ProxyEntry.grid(row=0, column=1)
+    LoadButton = Button(MainWindow, text=u"Ip адреса", font="system 10", width=12, command=Load_Button)
+    LoadButton.grid(row=1, column=0, sticky="e")
+    SaveButton = Button(MainWindow, text=u"Сохранить", font="system 10", width=12, height=1, state="disabled", command=Save_Button)
+    SaveButton.grid(row=2, column=0, sticky="e")
+    GetButton = Button(MainWindow, text=u"Получить", font="system 10", width=12, state="disabled", command=Get_Button)
+    GetButton.grid(row=1, column=1, rowspan=2, sticky="wns")
+    MainWindow.mainloop()
+    
+    
+def parse_answer(answer_xml):
+    full_answer = ""
+    answer = xml.etree.cElementTree.fromstring(answer_xml)
+    answer_ips = answer.getchildren()
+    for ip in answer_ips:
+        ip_answer = ""
+        ip_adress = ip.get("value")
+        ip_answer = "{0}|".format(ip_adress)
+        ip_info = ip.getchildren()
+        for element in ip_info:
+            ip_answer = "{0}{1}|".format(ip_answer, element.text.encode("cp1251"))
+        full_answer = "{0}{1}\n".format(full_answer, ip_answer)
+    return full_answer
+
+def create_xml(ips_list):
+    doc = Document()
+    ipquery = doc.createElement("ipquery")
+    doc.appendChild(ipquery)
+    fields = doc.createElement("fields")
+    all = doc.createElement("all")
+    fields.appendChild(all)
+    inetnum = doc.createElement("inetnum")
+    fields.appendChild(inetnum)
+    inet_descr = doc.createElement("inet-descr")
+    fields.appendChild(inet_descr)
+    inet_status = doc.createElement("inet-status")
+    fields.appendChild(inet_status)
+    city = doc.createElement("city")
+    fields.appendChild(city)
+    region = doc.createElement("region")
+    fields.appendChild(region)
+    district = doc.createElement("district")
+    fields.appendChild(district)
+    lat = doc.createElement("lat")
+    fields.appendChild(lat)
+    lng = doc.createElement("lng")
+    fields.appendChild(lng)
+    ipquery.appendChild(fields)
+    ip_list = doc.createElement("ip-list")
+    for ip in ips_list:
+        ip_element = doc.createElement("ip")
+        ip_value = doc.createTextNode(ip)
+        ip_element.appendChild(ip_value)
+        ip_list.appendChild(ip_element)
+    ipquery.appendChild(ip_list)
+    return doc.toxml()
+
+if __name__ == "__main__":
+    Gui()
